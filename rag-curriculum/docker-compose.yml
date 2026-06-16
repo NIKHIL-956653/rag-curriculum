@@ -1,0 +1,54 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: rag-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: rag-postgres
+    environment:
+      POSTGRES_USER: rag
+      POSTGRES_PASSWORD: rag_dev_password
+      POSTGRES_DB: rag_curriculum
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: rag-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
+
+  # Optional: uncomment to enable Langfuse tracing
+  # langfuse:
+  #   image: langfuse/langfuse:latest
+  #   container_name: rag-langfuse
+  #   environment:
+  #     DATABASE_URL: postgresql://rag:rag_dev_password@postgres:5432/langfuse
+  #     NEXTAUTH_SECRET: change-me-in-prod
+  #     SALT: change-me-in-prod
+  #     NEXTAUTH_URL: http://localhost:3000
+  #   ports:
+  #     - "3000:3000"
+  #   depends_on:
+  #     - postgres
+  #   restart: unless-stopped
+
+volumes:
+  qdrant_data:
+  postgres_data:
+  redis_data:

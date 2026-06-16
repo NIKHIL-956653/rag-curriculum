@@ -1,0 +1,128 @@
+# Subjects configuration
+#
+# Each subject defines:
+#   slug:           machine-readable ID (matches folder name in data/raw/)
+#   name:           display name
+#   content_type:   "ml" | "business" — drives parser choice
+#   parser:         "default" | "math_heavy" | "table_heavy" | "code_heavy" | "legal"
+#   acl_groups:     who can access (for multi-tenancy demo)
+#   priority:       order to ingest (lower = first); useful for incremental builds
+
+defaults:
+  acl_groups: ["all_students"]
+  chunk_size: 512
+  chunk_overlap: 100
+  parent_chunk_size: 1536
+
+subjects:
+  # === ML / Data Science (8) ===
+  - slug: advanced_machine_learning
+    name: Advanced Machine Learning
+    content_type: ml
+    parser: math_heavy
+    chunk_size: 400          # smaller to avoid splitting derivations
+    priority: 10
+
+  - slug: introduction_to_machine_learning
+    name: Introduction to Machine Learning
+    content_type: ml
+    parser: default
+    priority: 20
+
+  - slug: exploratory_data_analysis
+    name: Exploratory Data Analysis
+    content_type: ml
+    parser: table_heavy
+    priority: 30
+
+  - slug: unstructured_data_analysis
+    name: Unstructured Data Analysis
+    content_type: ml
+    parser: code_heavy
+    priority: 40
+
+  - slug: data_scrapping
+    name: Data Scrapping
+    content_type: ml
+    parser: code_heavy
+    priority: 50
+
+  - slug: programming_in_data_science
+    name: Programming in Data Science
+    content_type: ml
+    parser: code_heavy
+    priority: 1              # PILOT — easy to verify retrieval
+
+  - slug: visualization
+    name: Visualization
+    content_type: ml
+    parser: default
+    priority: 60
+
+  - slug: business_analytics
+    name: Business Analytics
+    content_type: ml
+    parser: table_heavy
+    priority: 70
+
+  # === Business / Management (10) ===
+  - slug: financial_management
+    name: Financial Management
+    content_type: business
+    parser: table_heavy      # financial statements
+    priority: 80
+
+  - slug: management_information_system
+    name: Management Information System
+    content_type: business
+    parser: default
+    priority: 90
+
+  - slug: marketing_management
+    name: Marketing Management
+    content_type: business
+    parser: default
+    priority: 100
+
+  - slug: production_and_operations_management
+    name: Production and Operations Management
+    content_type: business
+    parser: table_heavy
+    priority: 110
+
+  - slug: project_management
+    name: Project Management
+    content_type: business
+    parser: default
+    priority: 120
+
+  - slug: business_leadership
+    name: Business Leadership
+    content_type: business
+    parser: default
+    priority: 130
+
+  - slug: international_business_management
+    name: International Business Management
+    content_type: business
+    parser: default
+    priority: 140
+
+  - slug: strategic_management_and_business
+    name: Strategic Management and Business
+    content_type: business
+    parser: default
+    priority: 150
+
+  - slug: legal_aspects_of_business
+    name: Legal Aspects of Business
+    content_type: business
+    parser: legal            # preserve exact wording
+    chunk_size: 384          # smaller chunks for definitions
+    priority: 160
+
+  - slug: research_methodology
+    name: Research Methodology
+    content_type: business
+    parser: default
+    priority: 170
