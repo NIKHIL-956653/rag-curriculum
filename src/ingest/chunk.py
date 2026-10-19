@@ -10,8 +10,8 @@ context (parent has enough room for full thoughts).
 """
 from __future__ import annotations
 
+import hashlib
 import logging
-import uuid
 from dataclasses import dataclass, field
 
 import tiktoken
@@ -20,6 +20,16 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from src.ingest.parse import ParsedDocument
 
 log = logging.getLogger(__name__)
+
+
+def _stable_digest(text: str, size: int = 4) -> str:
+    """Short hex digest that is identical across processes and machines.
+
+    Deliberately NOT Python's built-in hash(): PYTHONHASHSEED randomises
+    str hashing per process, so anything derived from hash() changes on
+    every run.
+    """
+    return hashlib.blake2b(text.encode("utf-8"), digest_size=size).hexdigest()
 
 # Token counter — using GPT-4's tokenizer as a stable approximation.
 # Qwen and nomic use different tokenizers, but the relative counts are close
@@ -126,7 +136,14 @@ def chunk_document(
 
         page_no, section = page_for_offset(offset)
 
-        parent_id = f"{subject_slug}:u{doc.unit_number:02d}:p{page_no:03d}:par:{uuid.uuid4().hex[:8]}"
+        # Deterministic id: the SAME document re-ingested produces the SAME
+        # chunk_id, so `ON CONFLICT (chunk_id) DO UPDATE` in _persist_chunks_pg
+        # actually updates instead of inserting a duplicate. This used to be
+        # uuid4(), which made every run insert a fresh copy of the corpus.
+        # Content is part of the digest, so an edited PDF correctly yields a
+        # new id rather than silently overwriting the old chunk.
+        parent_digest = _stable_digest(f"{offset}\x00{parent_text}")
+        parent_id = f"{subject_slug}:u{doc.unit_number:02d}:p{page_no:03d}:par:{parent_digest}"
         parent_chunk = Chunk(
             chunk_id=parent_id,
             document_id=None,

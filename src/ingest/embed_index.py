@@ -8,6 +8,7 @@ plus context prefix. Qdrant handles the sparse-vector search natively.
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 from collections import Counter
@@ -40,8 +41,16 @@ def _tokenize_for_bm25(text: str) -> list[str]:
 
 
 def _term_to_id(term: str) -> int:
-    """Hash term to a stable 32-bit ID. Collisions are tolerable for our scale."""
-    return abs(hash(term)) % (2**31 - 1)
+    """Hash term to a stable 32-bit ID. Collisions are tolerable for our scale.
+
+    MUST NOT use Python's built-in hash(): PYTHONHASHSEED randomises str
+    hashing per process, so each ingest run would write a DIFFERENT term->id
+    mapping into the same Qdrant collection and the sparse (BM25) half of
+    hybrid search would compare incompatible vocabularies across subjects.
+    blake2b is stable across processes, machines and Python versions.
+    """
+    digest = hashlib.blake2b(term.encode("utf-8"), digest_size=4).digest()
+    return int.from_bytes(digest, "big") % (2**31 - 1)
 
 
 def _build_sparse_vector(text: str) -> SparseVector:
@@ -152,8 +161,14 @@ def _embed_and_index_children(
             continue
         sparse_vec = _build_sparse_vector(chunk.embed_text)
 
-        # Qdrant point ID must be uint or UUID; use stable hash of chunk_id
-        point_id = abs(hash(chunk.chunk_id)) % (2**63 - 1)
+        # Qdrant point ID must be uint or UUID. Same rule as _term_to_id:
+        # built-in hash() is per-process random, so re-ingesting a document
+        # would upsert to a NEW point instead of replacing the old one,
+        # leaving duplicates in the collection.
+        point_id = int.from_bytes(
+            hashlib.blake2b(chunk.chunk_id.encode("utf-8"), digest_size=8).digest(),
+            "big",
+        ) % (2**63 - 1)
 
         points_buffer.append(PointStruct(
             id=point_id,
