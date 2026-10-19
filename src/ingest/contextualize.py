@@ -6,14 +6,24 @@ Without context, embeddings often miss the topic; with context, retrieval
 accuracy jumps measurably (35-50% reduction in retrieval errors in the
 original paper).
 
-We use Qwen 2.5 7B locally — it's strong enough at this task.
+Backend is whatever LLM_BACKEND selects. Two sensible setups:
 
-Memory note: on an 8GB GPU, run this step BEFORE the embedding step (since
-Qwen needs ~5.5GB VRAM; unload before loading nomic-embed).
+- LLM_BACKEND=ollama  — Qwen 2.5 7B locally. Free, but this is the slowest
+  stage in the pipeline by far: ~1-2 concurrent requests, hours to days on a
+  full corpus.
+- LLM_BACKEND=anthropic — Claude Haiku. ~$1 per 10k chunks and happy at
+  30-50 concurrent requests, which collapses this stage to minutes. Set
+  CONTEXTUALIZE_WORKERS=40 to actually get that.
+
+Memory note (Ollama path only): on an 8GB GPU, run this step BEFORE the
+embedding step (Qwen needs ~5.5GB VRAM; unload before loading nomic-embed).
+On the Anthropic path the GPU stays free for nomic the whole run, so there
+is no model swap.
 """
 from __future__ import annotations
 
 import logging
+import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from tqdm import tqdm
@@ -79,7 +89,7 @@ def contextualize_chunks(
     chunks: list[Chunk],
     subject_name: str,
     only_children: bool = True,
-    max_workers: int = 2,
+    max_workers: int | None = None,
 ) -> list[Chunk]:
     """Add context_prefix to chunks in-place.
 
@@ -89,9 +99,13 @@ def contextualize_chunks(
         only_children: if True, only contextualize child chunks (which are
             what gets embedded). Parents are retrieved by ID, not by similarity,
             so they don't need context. This halves the cost.
-        max_workers: concurrent Ollama requests. Keep low (1-2) — Ollama
-            queues requests internally and high concurrency just wastes RAM.
+        max_workers: concurrent LLM requests. Defaults to CONTEXTUALIZE_WORKERS.
+            Ollama: keep low (1-2) — it queues internally and high concurrency
+            just wastes RAM. Anthropic: 30-50 is comfortable; the SDK retries
+            429s with backoff, so overshooting costs latency, not failures.
     """
+    if max_workers is None:
+        max_workers = settings.contextualize_workers
     if not settings.enable_contextual_retrieval:
         log.info("Contextual retrieval disabled; skipping.")
         return chunks
@@ -100,9 +114,18 @@ def contextualize_chunks(
     if not targets:
         return chunks
 
-    log.info("Contextualizing %d chunks with %s...", len(targets), settings.llm_model)
+    backend = os.getenv("LLM_BACKEND", "router").lower()
+    model_label = (
+        settings.anthropic_model if backend == "anthropic" else settings.llm_model
+    )
+    log.info(
+        "Contextualizing %d chunks with %s (%s, %d workers)...",
+        len(targets),
+        model_label,
+        backend,
+        max_workers,
+    )
 
-    # Sequential is fine on a single GPU; threads help slightly with HTTP overhead.
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         future_to_chunk = {
             pool.submit(_contextualize_one, c, subject_name): c
@@ -111,5 +134,18 @@ def contextualize_chunks(
         for fut in tqdm(as_completed(future_to_chunk), total=len(targets), desc="contextualize"):
             chunk = future_to_chunk[fut]
             chunk.context_prefix = fut.result()
+
+    # A chunk whose context failed gets an empty prefix and is still indexed,
+    # just without the retrieval benefit. Surface the count so a run that
+    # quietly lost half its blurbs to rate limits doesn't look like a success.
+    failed = sum(1 for c in targets if not c.context_prefix)
+    if failed:
+        log.warning(
+            "Context generation failed for %d/%d chunks (%.1f%%) — these are "
+            "indexed without a context prefix.",
+            failed,
+            len(targets),
+            100.0 * failed / len(targets),
+        )
 
     return chunks

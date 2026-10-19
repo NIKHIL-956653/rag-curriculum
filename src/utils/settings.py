@@ -57,6 +57,13 @@ class Settings:
     embedding_model: str = _env("EMBEDDING_MODEL", "nomic-embed-text")
     embedding_dim: int = _env_int("EMBEDDING_DIM", 768)
 
+    # Anthropic (optional paid backend — used for the bulk contextualize pass)
+    anthropic_model: str = _env("ANTHROPIC_MODEL", "claude-haiku-5-5")
+
+    # Ingest concurrency. Local Ollama wants 1-2; a hosted API wants 30-50.
+    # Raise this when LLM_BACKEND=anthropic or contextualize stays slow.
+    contextualize_workers: int = _env_int("CONTEXTUALIZE_WORKERS", 2)
+
     # Reranker
     reranker_model: str = _env("RERANKER_MODEL", "BAAI/bge-reranker-base")
     reranker_device: str = _env("RERANKER_DEVICE", "cpu")
