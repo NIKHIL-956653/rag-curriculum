@@ -36,6 +36,12 @@ logs/
 
 # Eval outputs
 eval_results_*.json
+src/eval/_test_*.jsonl
+src/eval/eval_set_*.draft.jsonl
+
+# Local model caches
+hf-cache/
+ollama-models/
 
 # OS
 Thumbs.db

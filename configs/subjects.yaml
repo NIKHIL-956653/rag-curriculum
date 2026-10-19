@@ -126,3 +126,15 @@ subjects:
     content_type: business
     parser: default
     priority: 170
+
+  - slug: social_policy
+    name: Social Policy and Social Welfare
+    content_type: social_science
+    parser: default
+    priority: 200
+
+  - slug: anthropology
+    name: Anthropology
+    content_type: social_science
+    parser: default
+    priority: 220
