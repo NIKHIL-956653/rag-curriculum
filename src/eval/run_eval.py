@@ -209,8 +209,13 @@ def main() -> int:
                 for r in results
             ],
         }
-        Path(args.output_json).write_text(json.dumps(out, indent=2))
-        console.print(f"[green]Wrote detailed results to {args.output_json}[/green]")
+        # Create the directory first: without this, a run into a path like
+        # reports/foo.json completes the whole evaluation and then throws the
+        # results away on the last line with FileNotFoundError.
+        out_path = Path(args.output_json)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(json.dumps(out, indent=2), encoding="utf-8")
+        console.print(f"[green]Wrote detailed results to {out_path}[/green]")
 
     return 0
 

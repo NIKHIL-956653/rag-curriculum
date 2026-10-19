@@ -1,0 +1,1 @@
+﻿{"config":"haiku, TOP_K_RERANK=5","n_cases":204,"recall_at_k":0.794,"mrr":0.766,"avg_keyword_coverage":0.899,"avg_latency_ms":12839,"note":"second identical run gave recall 0.794, mrr 0.766, coverage 0.910 - retrieval metrics are deterministic"}
